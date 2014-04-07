@@ -18,7 +18,10 @@ import java.io.InputStreamReader;
 import java.io.PrintStream;
 import java.net.ServerSocket;
 import java.net.Socket;
-//import org.json.JSONObject;
+import java.util.List;
+
+import org.json.*;
+
 
 public class MMServer {
 	private static final int SERVER_SOCKET = 10003;
@@ -75,22 +78,43 @@ class Listener extends Thread
     	String requestType = null;
     	try {
         	inStream  = new BufferedReader(new InputStreamReader(socket.getInputStream(), "UTF-8"));
+        	outStream = new PrintStream(socket.getOutputStream(), true);
+        	
         	//open database
-			requestType = inStream.readLine(); // first step of protocol: new meeting or get meetings
-			System.out.println("Client looking to request a " + requestType);
-			
 			db = new MMDatabase();
-			if(requestType.equals("newmeeting")){
+			while (true) {
+				requestType = inStream.readLine(); // first step of protocol: new meeting or get meetings
+				System.out.println("Client looking to request a " + requestType);
+				
+				if(requestType.equals("newmeeting")){
 				//get meeting data, send it to database to be stored
-			}
-			else if(requestType.equals("mapview")){
+					JSONObject json_mtg = null;
+					try {
+						json_mtg = new JSONObject(inStream.readLine());
+					} catch (Exception e) {
+						System.out.println("Couldn't get json: " + e);
+						closeStreams(inStream, outStream, socket);
+						return;
+					}
+					if (db.addMeeting(json_mtg)) outStream.println("Saved your new meeting!");
+					else outStream.println("Something happened and we couldn't save your meeting.");
+					System.out.println("Meeting added, listening again.");
+					
+				}
+				
+				else if(requestType.equals("mapview")){
 				//get client name, query database for JSON list, send back to client
-			}
-			else {
-				System.out.println("The request type is incorrect. This should not be possible. Shit.");
+					String name = inStream.readLine();
+					List<JSONObject> mtg_list = db.getMeetings(name);
+					outStream.println(mtg_list);
+				}
+				
+				else {
+					System.out.println("The request type is incorrect. This should not be possible. Shit.");
+				}
 			}
     	} catch (Exception e) {
-    		System.out.println("Lost communication with client" + ": " + e);
+    		System.out.println("Lost communication with client: " + e);
     		closeStreams(inStream, outStream, socket);
     		return;  // give up on this client
     	}
