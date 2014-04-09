@@ -4,15 +4,10 @@
  * Database info -- server:localhost, username:watanami, password:mapmeet
  */
 
-import java.awt.*;
-import java.awt.event.*;
 import java.sql.*;
-import java.text.*;
-import javax.swing.*;
 import java.util.List;
 import java.util.LinkedList;
-
-import org.json.JSONObject;
+import org.json.*;
 
 public class MMDatabase {
 	private static final String
@@ -32,14 +27,29 @@ public class MMDatabase {
 		} catch (SQLException e) { die("getConnection failed: " + e); }
 	}
 	
-	public boolean addMeeting(JSONObject mtgdata) {
-		//unpack JSON meeting data, put into the database, return true/false
+	public boolean addMeeting(String mtgdata) {
+		JSONTokener tokener = new JSONTokener(mtgdata);
+		JSONObject mtgjson = new JSONObject(tokener);
+		
+		String title = mtgjson.getString("Title");
+		String date = mtgjson.getString("Date");
+		String time = mtgjson.getString("Time");
+		String attlst = mtgjson.getString("Attendees");
+		double lat = mtgjson.getDouble("Location_Lat");
+		double lon = mtgjson.getDouble("Location_Long");
+		
+		try {
+			String query = "insert into meetings (Title, Date, Time, Attendees, Location_Lat, Location_Long) values (" +title+", "+date+", "+time+", "+attlst+", "+lat+", "+lon+")";
+			Statement statement = conn.createStatement();
+			statement.executeUpdate(query);
+			statement.close();
+		} catch (SQLException e) { die("getMeetings failed: " + e); }
 		return true;
 	}
 	
-	public List<JSONObject> getMeetings(String name) {
+	public List<String> getMeetings(String name) {
 		//query for meetings that include name, returns list of JSON meeting objects
-		List<JSONObject> mtg_list = new LinkedList<JSONObject>();
+		List<String> mtg_list = new LinkedList<String>();
 		ResultSet results = null;
 		String query = "select * from meetings where " + name + " like '%" + name + "%';";
 		try {
@@ -47,8 +57,10 @@ public class MMDatabase {
 			results = statement.executeQuery(query);
 			while (results.next()) {
 				JSONObject json_mtg = queryToJson(results);
-				mtg_list.add(json_mtg);
+				mtg_list.add(json_mtg.toString());
 			}
+			results.close();
+			statement.close();
 		} catch (SQLException e) { die("getMeetings failed: " + e); }
 		return mtg_list;
 	}
@@ -60,8 +72,8 @@ public class MMDatabase {
 			json_meeting.put("Date", result.getDate("Date").toString());
 			json_meeting.put("Time",result.getTime("Time").toString());
 			json_meeting.put("Att_list", result.getString("Attendees"));
-			json_meeting.put("Latitude", result.getFloat("Location_Lat"));
-			json_meeting.put("Longitude", result.getFloat("Location_Long"));
+			json_meeting.put("Latitude", result.getDouble("Location_Lat"));
+			json_meeting.put("Longitude", result.getDouble("Location_Long"));
 		} catch (SQLException e) { die("queryToJson failed: " + e); }
 		
 		return json_meeting;

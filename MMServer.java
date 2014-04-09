@@ -19,7 +19,6 @@ import java.io.PrintStream;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.List;
-
 import org.json.*;
 
 
@@ -94,9 +93,9 @@ class Listener extends Thread
 					} catch (Exception e) {
 						System.out.println("Couldn't get json: " + e);
 						closeStreams(inStream, outStream, socket);
-						return;
+						break;
 					}
-					if (db.addMeeting(json_mtg)) outStream.println("Saved your new meeting!");
+					if (db.addMeeting(json_mtg.toString())) outStream.println("Saved your new meeting!");
 					else outStream.println("Something happened and we couldn't save your meeting.");
 					System.out.println("Meeting added, listening again.");
 					
@@ -105,8 +104,8 @@ class Listener extends Thread
 				else if(requestType.equals("mapview")){
 				//get client name, query database for JSON list, send back to client
 					String name = inStream.readLine();
-					List<JSONObject> mtg_list = db.getMeetings(name);
-					outStream.println(mtg_list);
+					List<String> mtg_list = db.getMeetings(name);
+					for (String mtg: mtg_list) outStream.println(mtg);
 				}
 				
 				else {
