@@ -19,7 +19,8 @@ import java.io.PrintStream;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.List;
-import org.json.*;
+
+import org.json.JSONObject;
 
 
 public class MMServer {
@@ -29,6 +30,7 @@ public class MMServer {
 			ServerSocket ss = null;
 			try{
 				ss = new ServerSocket(SERVER_SOCKET);
+				System.out.println("ss is the server socket.");
 			} catch (IOException e) {
 				System.out.println("Couldn't open server socket, will try again in a minute.");
 				System.out.println(e);
@@ -38,7 +40,14 @@ public class MMServer {
 			while(true) {
 				Socket socket = null;
 				try {
+					System.out.println("Listening...");
 					socket = ss.accept();
+					try {
+						Thread.sleep(1000); // slow rate to one connection per second
+					} catch (InterruptedException e) {
+						// TODO Auto-generated catch block
+						e.printStackTrace();
+					}
 				} catch (IOException e) {
 					System.out.println("Failed to accept a connection, will attempt server restart in a minute.");
 					try { ss.close(); } catch (IOException e1) { /* tried */ }
@@ -47,6 +56,7 @@ public class MMServer {
 				}
 				System.out.println("Got new client");
 				(new Listener(socket)).start();
+				System.out.println("Started listener");
 			}
 		}
 	}
@@ -71,7 +81,7 @@ class Listener extends Thread
     		try { socket.close();   } catch (IOException ex) { /* we tried */ }
     }
 
-    public void run() {    
+    public void run() {  
     	BufferedReader inStream  = null;
     	PrintStream    outStream = null;
     	String requestType = null;
@@ -81,22 +91,30 @@ class Listener extends Thread
         	
         	//open database
 			db = new MMDatabase();
+			System.out.println("database created.");
 			while (true) {
 				requestType = inStream.readLine(); // first step of protocol: new meeting or get meetings
 				System.out.println("Client looking to request a " + requestType);
 				
 				if(requestType.equals("newmeeting")){
 				//get meeting data, send it to database to be stored
+					System.out.println("newmeeting");
 					JSONObject json_mtg = null;
 					try {
-						json_mtg = new JSONObject(inStream.readLine());
+						json_mtg = new JSONObject();
+						json_mtg.put("Title", inStream.readLine());
+						json_mtg.put("Date", inStream.readLine());
+						json_mtg.put("Time", inStream.readLine());
+						json_mtg.put("Attendees", inStream.readLine());
+						json_mtg.put("Location", inStream.readLine());
+						System.out.println("json object created");
 					} catch (Exception e) {
 						System.out.println("Couldn't get json: " + e);
 						closeStreams(inStream, outStream, socket);
 						break;
 					}
-					if (db.addMeeting(json_mtg.toString())) outStream.println("Saved your new meeting!");
-					else outStream.println("Something happened and we couldn't save your meeting.");
+					if (db.addMeeting(json_mtg.toString())) outStream.println("yes");
+					else outStream.println("no");
 					System.out.println("Meeting added, listening again.");
 					
 				}
@@ -104,8 +122,10 @@ class Listener extends Thread
 				else if(requestType.equals("mapview")){
 				//get client name, query database for JSON list, send back to client
 					String name = inStream.readLine();
+					System.out.println(name);
 					List<String> mtg_list = db.getMeetings(name);
 					for (String mtg: mtg_list) outStream.println(mtg);
+					outStream.println("no");
 				}
 				
 				else {
@@ -114,6 +134,7 @@ class Listener extends Thread
 			}
     	} catch (Exception e) {
     		System.out.println("Lost communication with client: " + e);
+    		db.closeConnection();
     		closeStreams(inStream, outStream, socket);
     		return;  // give up on this client
     	}
